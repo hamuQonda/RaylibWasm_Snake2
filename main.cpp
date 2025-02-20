@@ -6,7 +6,7 @@
 #endif
 
 // raylib color からランダムに色を１つ選ぶ関数
-Color GetColorRaylib() {
+static Color GetColorRaylib() {
     Color colors[] = {
     LIGHTGRAY, GRAY, DARKGRAY, YELLOW, GOLD, ORANGE, PINK, RED, MAROON, GREEN,
     LIME, DARKGREEN, SKYBLUE, BLUE, DARKBLUE, PURPLE, VIOLET, DARKPURPLE,
@@ -53,7 +53,7 @@ struct Obstacle {
 };
 
 // ランダムにエサを配置する関数
-void InitFood(std::vector<Food>& food) {
+static void InitFood(std::vector<Food>& food) {
     for (auto& f : food) {
         f.position = { (float)GetRandomValue(0, worldWidth), (float)GetRandomValue(0, worldHeight) };
         f.radius = 3.6f;
@@ -101,7 +101,7 @@ static void InitSnake(std::vector<Ball>& balls) {
 }
 
 // ４つの点を含む最小の矩形を取得する関数
-Rectangle GetRectangleFromPoints(const std::vector<Vector2>& points) {
+static Rectangle GetRectangleFromPoints(const std::vector<Vector2>& points) {
     float minX = std::min_element(points.begin(), points.end(), [](Vector2 a, Vector2 b) { return a.x < b.x; })->x;
     float minY = std::min_element(points.begin(), points.end(), [](Vector2 a, Vector2 b) { return a.y < b.y; })->y;
     float maxX = std::max_element(points.begin(), points.end(), [](Vector2 a, Vector2 b) { return a.x < b.x; })->x;
@@ -124,8 +124,6 @@ int main(void)
     std::vector<Ball> balls{};
     InitSnake(balls);
 
-    //Vector2 playerPosition = { screenWidth / 2.0f, screenHeight / 2.0f };
-    Vector2 playerPosition = balls[0].position;
     Vector2 cameraOffset = { screenWidth / 2.0f, screenHeight / 2.0f };
     Camera2D camera = { {0, 0}, {0, 0}, 0.0f, 1.0f };
 
