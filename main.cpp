@@ -121,7 +121,7 @@ static Vector2 RotateVector(Vector2 v, float degrees) {
     return { v.x * cosTheta - v.y * sinTheta, v.x * sinTheta + v.y * cosTheta };
 }
 
-struct Game {
+static struct Game {
     Vector2 cameraOffset;
     Camera2D camera;
 
@@ -137,6 +137,8 @@ struct Game {
 
     void InitGm()
     {
+        cameraOffset = { screenWidth / 2.0f, screenHeight / 2.0f };
+        camera = { {0, 0}, {0, 0}, 0.0f, 1.0f };
         balls.clear();
         InitSnake(balls);
         food.clear();
@@ -153,19 +155,17 @@ struct Game {
 
     Game()
     {
-        cameraOffset = cameraOffset = { screenWidth / 2.0f, screenHeight / 2.0f };
-        camera = { {0, 0}, {0, 0}, 0.0f, 1.0f };
         InitGm();
     }
 
-};
+}gm;
 
-void UpdateDrawFrame(Game& gm);
+void UpdateDrawFrame();
 
 int main(void)
 {
     InitWindow(screenWidth, screenHeight, "Raylib Wasm Snake2");
-    Game gm;
+    //Game gm;
 
     //std::vector<Ball> balls{};
     //InitSnake(balls);
@@ -185,13 +185,15 @@ int main(void)
     //int score = 0;
     //bool gameOver = false;
 
+    gm.InitGm();
+
 #if defined(PLATFORM_WEB)
     emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
 #else
     SetTargetFPS(60);
     while (!WindowShouldClose())
     {
-        UpdateDrawFrame(gm);
+        UpdateDrawFrame();
     }
 #endif
 
@@ -200,7 +202,7 @@ int main(void)
     return 0;
 }
 
-void UpdateDrawFrame(Game& gm)
+void UpdateDrawFrame()
 {
     int hitBallNum = 0;
     std::vector<Vector2> vtx = { {},{},{},{} };
@@ -448,13 +450,25 @@ void UpdateDrawFrame(Game& gm)
         DrawText("Game  Over!", screenWidth / 2 - MeasureText("Game  Over!", 80) / 2, screenHeight / 2 - 20, 80, YELLOW);
         DrawText(TextFormat("Score: %05d", gm.score), screenWidth / 2 - MeasureText("Score: 00000", 60) / 2, screenHeight / 2 - 140, 60, YELLOW);
         DrawText("Press R to Retry", screenWidth / 2 - MeasureText("Press R to Retry", 40) / 2, screenHeight / 2 + 80, 40, YELLOW);
+
+        if (IsKeyPressed(KEY_R)) {
+            ballDirection = { 1, 0 };
+            // ゲームをリセット
+            gm.balls.clear();
+            InitSnake(gm.balls);
+            gm.food.clear();
+            InitFood(gm.food);
+            gm.obstacles.clear();
+            InitObstacles(gm.obstacles);
+
+            gm.stopTimer = 0.0f;
+            gm.numFoodEaten = 0;
+            gm.score = 0;
+            gm.lifeNum = 5;
+            gm.gameOver = false;
+        }
     }
 
     EndDrawing();
 
-    if (gm.gameOver && IsKeyPressed(KEY_R)) {
-        ballDirection = { 1, 0 };
-        // ゲームをリセット
-        gm.InitGm();
-    }
 }
