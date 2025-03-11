@@ -99,7 +99,7 @@ static void InitSnake(std::vector<Ball>& balls) {
         balls[i].angle = 0.0f;
         balls[i].position = (i == 0) ? Vector2{ worldWidth / 2.0f, worldHeight / 2.0f } : // 頭の初期位置
             Vector2{ balls[i - 1].position.x - startR * 2.0f, balls[i - 1].position.y };    // 後は前の位置から一定間隔で配置
-        //balls[i].position = balls[i - 1].position;
+        //balls[y].position = balls[y - 1].position;
         balls[i].active = true;
     }
 }
@@ -124,6 +124,9 @@ static Vector2 RotateVector(Vector2 v, float degrees) {
 static struct Game {
     Vector2 cameraOffset;
     Camera2D camera;
+
+    Music bgm;
+    Sound seEat;
 
     std::vector<Ball> balls{};
     std::vector<Food> food;
@@ -151,11 +154,23 @@ static struct Game {
         score = 0;
         lifeNum = 5;
         gameOver = false;
+        PlayMusicStream(bgm);
     }
 
     Game()
     {
+        InitAudioDevice();
+        bgm = LoadMusicStream("resources/bgm00.wav");
+        seEat = LoadSound("resources/ptu.mp3");
         InitGm();
+    }
+
+    ~Game()
+    {
+        UnloadSound(seEat);
+        UnloadMusicStream(bgm);
+
+        CloseAudioDevice();
     }
 
 }gm;
@@ -165,26 +180,6 @@ void UpdateDrawFrame();
 int main(void)
 {
     InitWindow(screenWidth, screenHeight, "Raylib Wasm Snake2");
-    //Game gm;
-
-    //std::vector<Ball> balls{};
-    //InitSnake(balls);
-
-    //Vector2 cameraOffset = { screenWidth / 2.0f, screenHeight / 2.0f };
-    //Camera2D camera = { {0, 0}, {0, 0}, 0.0f, 1.0f };
-
-    //std::vector<Food> food(numFood);
-    //InitFood(food);
-
-    //std::vector<Obstacle> obstacles(initialNumObstacles);
-    //InitObstacles(obstacles);
-
-    //float stopTimer = 0.0f;
-    //int numFoodEaten = 0;
-    //int lifeNum = 5;
-    //int score = 0;
-    //bool gameOver = false;
-
     gm.InitGm();
 
 #if defined(PLATFORM_WEB)
@@ -214,6 +209,7 @@ void UpdateDrawFrame()
         float bSpeed = (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) ? highSpeed : nomalSpeed;
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // 更新
+        UpdateMusicStream(gm.bgm);   // Update music buffer with new stream data
         float deltaTime = GetFrameTime();
 
         if (gm.stopTimer <= 0.0f)
@@ -246,14 +242,14 @@ void UpdateDrawFrame()
             for (int i = 1; i < gm.balls.size(); ++i) {
                 Vector2 bkPos = { gm.balls[i].position.x, gm.balls[i].position.y };
                 float am = (bSpeed == highSpeed) ? 0.38f : 0.19f;
-                //balls[i].position = Vector2Lerp(balls[i].position, balls[i - 1].position, am);
+                //balls[y].position = Vector2Lerp(balls[y].position, balls[y - 1].position, am);
                 gm.balls[i].position = Vector2Lerp(gm.balls[i].position, bkupBall.position, am);
                 bkupBall = { bkPos, bkupBall.radius, bkupBall.angle };
             }
             //// 残りのボールが先頭のボールを追随するように位置を更新
-            //for (int i = 1; i < balls.size(); ++i) {
+            //for (int y = 1; y < balls.size(); ++y) {
             //    float am = bSpeed == highSpeed ? 0.27f : 0.19f;
-            //    balls[i].position = Vector2Lerp(balls[i].position, balls[i - 1].position, am);
+            //    balls[y].position = Vector2Lerp(balls[y].position, balls[y - 1].position, am);
             //}
 
             // エサとの衝突判定
@@ -266,8 +262,8 @@ void UpdateDrawFrame()
                     f.position.x - f.radius, f.position.y - f.radius ,f.radius * 2, f.radius * 2
                 };
 
+                //if (f.active && CheckCollisionCircles(balls[0].position, balls[0].radius, f.position, f.radius)) {
                 if (f.active && CheckCollisionRecs(recBall0, recFood)) {
-                    //if (f.active && CheckCollisionCircles(balls[0].position, balls[0].radius, f.position, f.radius)) {
                     f.active = false;
                     gm.numFoodEaten++;
                     gm.score = gm.numFoodEaten * 10;
@@ -307,7 +303,7 @@ void UpdateDrawFrame()
                 {
                     Rectangle rect = GetRectangleFromPoints(vtx);
                     if (CheckCollisionPointRec(gm.obstacles[i].position, rect)) {
-                        //obstacles[i].active = false;
+                        PlaySound(gm.seEat);
                         gm.obstacles.erase(gm.obstacles.begin() + i);
                         gm.score += 50;
                     }
@@ -328,7 +324,7 @@ void UpdateDrawFrame()
                     if (--gm.lifeNum > 0) {
                         gm.balls[0].active = false;
                         o.active = false;
-                        gm.stopTimer = 1.2f;
+                        gm.stopTimer = 1.0f;
                     }
                     else {
                         o.active = false;
@@ -364,78 +360,87 @@ void UpdateDrawFrame()
     //DrawRectangleGradientEx({ 0, 0, 800, 600 }, BROWN, BLUE, GOLD, RED);
 
     BeginMode2D(gm.camera);
-    DrawRectangle(0, 0, worldWidth, worldHeight, Color{0,0,15,255});
-
-    // 囲い範囲テスト
     {
-        if (hitBallNum > 0) {
-            vtx[0] = gm.balls[hitBallNum].position;
-            vtx[1] = gm.balls[4].position;
-            vtx[2] = gm.balls[9].position;
-            vtx[3] = gm.balls[14].position;
+        DrawRectangle(0, 0, worldWidth, worldHeight, Color{ 0,0,15,255 });
+        for (int y = 0; y <= worldHeight; y += 100)
+        {
+            for (int x = 0; x <= worldWidth; x+=100)
+            {
+                DrawPoly({ (float)x,(float)y }, 5, 72.0f, 44.60f, { 105, 105, 5, 15 });
+            }
         }
-        DrawLineV(vtx[0], vtx[1], YELLOW);
-        DrawLineV(vtx[1], vtx[2], YELLOW);
-        DrawLineV(vtx[2], vtx[3], YELLOW);
-        DrawLineV(vtx[3], vtx[0], YELLOW);
-    }
-    /*
-    */
 
-    // へび(player)----------------------------------------------------------------------------------------------
-    Color color = gm.balls[0].active ? Color{ 15, 255, 15, 255 } : GRAY;
-    for (const auto& ball : gm.balls) {
-        //DrawCircleLinesV(ball.position, ball.radius, color);
-        //DrawCircle(ball.position.x, ball.position.y, ball.radius, color);
-        //DrawCircleV(ball.position, ball.radius, color);
-        DrawCircleGradient(ball.position.x, ball.position.y, ball.radius, color, { 255,255,255,0 });
-    }
-    //DrawCircleV(balls[0].position, balls[0].radius / 2.5f, { 55,255,55,205 }); // 頭
-        // 目
-    Vector2 lEyeDir = RotateVector(ballDirection, -40.0f);
-    Vector2 rEyeDir = RotateVector(ballDirection, 40.0f);
-    float eyeRadius = gm.balls[0].radius / 3.2f;
-    Color eyesColor = gm.balls[0].active ? PINK : RAYWHITE;//Color{ 225,225,225,255 };
-    DrawCircleV({ gm.balls[0].position.x + lEyeDir.x * 4.0f, gm.balls[0].position.y + lEyeDir.y * 4.0f }, eyeRadius, eyesColor);
-    DrawCircleV({ gm.balls[0].position.x + rEyeDir.x * 4.0f, gm.balls[0].position.y + rEyeDir.y * 4.0f }, eyeRadius, eyesColor);
-    if (gm.balls[0].active) {
-        DrawCircleV({ gm.balls[0].position.x + lEyeDir.x * 4.0f, gm.balls[0].position.y + lEyeDir.y * 4.0f }, eyeRadius / 2.2f, BLACK);
-        DrawCircleV({ gm.balls[0].position.x + rEyeDir.x * 4.0f, gm.balls[0].position.y + rEyeDir.y * 4.0f }, eyeRadius / 2.2f, BLACK);
-    }
+        // 囲い範囲テスト
+        {
+            if (hitBallNum > 0) {
+                vtx[0] = gm.balls[hitBallNum].position;
+                vtx[1] = gm.balls[4].position;
+                vtx[2] = gm.balls[9].position;
+                vtx[3] = gm.balls[14].position;
+            }
+            DrawLineV(vtx[0], vtx[1], YELLOW);
+            DrawLineV(vtx[1], vtx[2], YELLOW);
+            DrawLineV(vtx[2], vtx[3], YELLOW);
+            DrawLineV(vtx[3], vtx[0], YELLOW);
+        }
+        /*
+        */
 
-    // 5ボールごとの節
-    for (size_t i = 0; i < gm.balls.size(); i++)
-    {
-        //if ((i + 1) % 10 == 0) {
-        //    DrawCircleV(gm.balls[i].position, gm.balls[i].radius / 3.2f, GREEN); // 5
-        //}
-        //else
-        if ((i + 1) % 5 == 0) {
-            DrawCircleV(gm.balls[i].position, gm.balls[i].radius / 4.8f, GREEN); // 5
+        // へび(player)----------------------------------------------------------------------------------------------
+        Color color = gm.balls[0].active ? Color{ 15, 255, 15, 255 } : GRAY;
+        for (const auto& ball : gm.balls) {
+            //DrawCircleLinesV(ball.position, ball.radius, color);
+            //DrawCircle(ball.position.x, ball.position.y, ball.radius, color);
+            //DrawCircleV(ball.position, ball.radius, color);
+            DrawCircleGradient(ball.position.x, ball.position.y, ball.radius, color, { 255,255,255,0 });
+        }
+        //DrawCircleV(balls[0].position, balls[0].radius / 2.5f, { 55,255,55,205 }); // 頭
+            // 目
+        Vector2 lEyeDir = RotateVector(ballDirection, -40.0f);
+        Vector2 rEyeDir = RotateVector(ballDirection, 40.0f);
+        float eyeRadius = gm.balls[0].radius / 3.2f;
+        Color eyesColor = gm.balls[0].active ? PINK : RAYWHITE;//Color{ 225,225,225,255 };
+        DrawCircleV({ gm.balls[0].position.x + lEyeDir.x * 4.0f, gm.balls[0].position.y + lEyeDir.y * 4.0f }, eyeRadius, eyesColor);
+        DrawCircleV({ gm.balls[0].position.x + rEyeDir.x * 4.0f, gm.balls[0].position.y + rEyeDir.y * 4.0f }, eyeRadius, eyesColor);
+        if (gm.balls[0].active) {
+            DrawCircleV({ gm.balls[0].position.x + lEyeDir.x * 4.0f, gm.balls[0].position.y + lEyeDir.y * 4.0f }, eyeRadius / 2.2f, BLACK);
+            DrawCircleV({ gm.balls[0].position.x + rEyeDir.x * 4.0f, gm.balls[0].position.y + rEyeDir.y * 4.0f }, eyeRadius / 2.2f, BLACK);
+        }
+
+        // 5ボールごとの節
+        for (size_t i = 0; i < gm.balls.size(); i++)
+        {
+            //if ((y + 1) % 10 == 0) {
+            //    DrawCircleV(gm.balls[y].position, gm.balls[y].radius / 3.2f, GREEN); // 5
+            //}
+            //else
+            if ((i + 1) % 5 == 0) {
+                DrawCircleV(gm.balls[i].position, gm.balls[i].radius / 4.8f, GREEN); // 5
+            }
+        }
+        /*
+        */
+        // へび(player)----------------------------------------------------------------------------------------------
+
+        // エサ
+        for (const auto& f : gm.food) {
+            if (f.active) {
+                //DrawStar(f, YELLOW);
+                //DrawCircleV(f.position, f.radius, RED); // エサの色を赤に変更
+                DrawCircleGradient(f.position.x, f.position.y, f.radius * 2, f.color, BLANK);
+            }
+        }
+
+        // 障害物
+        for (const auto& o : gm.obstacles) {
+            //if (o.active) {
+                //DrawCircleV(o.position, o.radius, DARKGRAY);
+            DrawCircleGradient(o.position.x, o.position.y, o.radius * 1.5, RED, { 255,255,255,128 });
+            //}
         }
     }
-    /*
-    */
-    // へび(player)----------------------------------------------------------------------------------------------
-
-    // エサ
-    for (const auto& f : gm.food) {
-        if (f.active) {
-            //DrawStar(f, YELLOW);
-            //DrawCircleV(f.position, f.radius, RED); // エサの色を赤に変更
-            DrawCircleGradient(f.position.x, f.position.y, f.radius * 2, f.color, BLANK);
-        }
-    }
-
-    // 障害物
-    for (const auto& o : gm.obstacles) {
-        //if (o.active) {
-            //DrawCircleV(o.position, o.radius, DARKGRAY);
-        DrawCircleGradient(o.position.x, o.position.y, o.radius * 1.5, RED, { 255,255,255,128 });
-        //}
-    }
-
     EndMode2D();
+
     // メッセージ表示
     // スコア
     DrawText(TextFormat("Score: %05d", gm.score), 4, 4, 20, RAYWHITE);
@@ -446,6 +451,7 @@ void UpdateDrawFrame()
     }
 
     if (gm.gameOver) {
+        StopMusicStream(gm.bgm);
         DrawText(TextFormat("Life : %d", gm.lifeNum), screenWidth / 2 - MeasureText("Life : 0", 50) / 2, screenHeight / 2 - 200, 50, YELLOW);
         DrawText("Game  Over!", screenWidth / 2 - MeasureText("Game  Over!", 80) / 2, screenHeight / 2 - 20, 80, YELLOW);
         DrawText(TextFormat("Score: %05d", gm.score), screenWidth / 2 - MeasureText("Score: 00000", 60) / 2, screenHeight / 2 - 140, 60, YELLOW);
@@ -454,18 +460,7 @@ void UpdateDrawFrame()
         if (IsKeyPressed(KEY_R)) {
             ballDirection = { 1, 0 };
             // ゲームをリセット
-            gm.balls.clear();
-            InitSnake(gm.balls);
-            gm.food.clear();
-            InitFood(gm.food);
-            gm.obstacles.clear();
-            InitObstacles(gm.obstacles);
-
-            gm.stopTimer = 0.0f;
-            gm.numFoodEaten = 0;
-            gm.score = 0;
-            gm.lifeNum = 5;
-            gm.gameOver = false;
+            gm.InitGm();
         }
     }
 
